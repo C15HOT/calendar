@@ -1,0 +1,80 @@
+name: Testing
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  lint:
+    name: Linters
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@v2
+      -
+        name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      -
+        name: Check cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: requirements-${{ hashFiles('requirements.txt') }}-${{ hashFiles('requirements-dev.txt') }}
+      -
+        name: Install dependencies
+        run: python -m pip install --requirement requirements-dev.txt --trusted-host 5.53.125.17:8080
+        env:
+          PIP_EXTRA_INDEX_URL: http://pypi:${{ secrets.PYPI_USER_PASSWORD }}@5.53.125.17:8080
+      -
+        name: install hooks
+        run: pre-commit install-hooks
+      -
+        name: flake8
+        run: pre-commit run flake8 --all-files --show-diff-on-failure
+      -
+        name: pylint
+        run: pre-commit run pylint --all-files --show-diff-on-failure
+      -
+        name: mypy
+        run: pre-commit run mypy --all-files --show-diff-on-failure
+
+  tests:
+    name: Testing
+    needs:
+      - lint
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@v2
+      -
+        name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      -
+        name: Check cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: requirements-${{ hashFiles('requirements.txt') }}-${{ hashFiles('requirements-dev.txt') }}
+      -
+        name: Install dependencies
+        run: python -m pip install --requirement requirements-dev.txt --trusted-host 5.53.125.17:8080
+        env:
+          PIP_EXTRA_INDEX_URL: http://pypi:${{ secrets.PYPI_USER_PASSWORD }}@5.53.125.17:8080
+      -
+        name: Run docker-compose stack
+        run: docker-compose up -d
+      -
+        name: Wait till all containers are up
+        run: sleep 15
+      -
+        name: Copy default env config
+        run: mv .env.example .env
+      -
+        name: Run tests
+        run: python -m pytest
