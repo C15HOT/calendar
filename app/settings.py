@@ -11,8 +11,8 @@ logger = getLogger("settings")
 class PostgresSettings(ServiceSettingsBase):
 
 
-    avatar_postgres_server: str = os.getenv('avatar_postgres_server')
-    avatar_postgres_db: str = os.getenv('avatar_postgres_db')
+    postgres_server: str
+    postgres_db: str
 
 class RabbitMQEntitiesSubSettings(ServiceSettingsBase):
     ...
@@ -28,5 +28,5 @@ class Settings(ServiceSettingsBase):
 def get_settings() -> Settings:
     logger.info("Settings created")
     settings = Settings()
-    print(settings.postgres_settings.avatar_postgres_server)
+    print(settings.postgres_settings.postgres_server)
     return settings
