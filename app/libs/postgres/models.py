@@ -162,7 +162,7 @@ class ChatUser(Base):
 class Event(Base):
     __tablename__ = 'events'
 
-    id = Column(UUID, primary_key=True)
+    id = Column(UUID(as_uuid=True), primary_key=True)
     title = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=text("now()"))
     edited_at = Column(DateTime)

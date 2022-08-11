@@ -1,7 +1,9 @@
-from pydantic import BaseModel
+from typing import List
+
+from pydantic import BaseModel, Field
 from pydantic.types import UUID4
 from datetime import datetime, date
-
+import uuid
 from enum import Enum
 
 class Gender(Enum):
@@ -9,13 +11,13 @@ class Gender(Enum):
     female = 'female'
     other = 'other'
 
-class Users(BaseModel):
+class UsersSchema(BaseModel):
     id: UUID4
     username: str
     firstname: str
     lastname: str
     middlename: str
-    gender: Gender.value
+    gender: Gender
     birthday: date
     photo_uri: str
     join_data: date
@@ -27,8 +29,8 @@ class EventRepeatMode(Enum):
     interval = 'interval'
     week_days = 'week_days'
 
-class Tasks(BaseModel):
-    id: UUID4
+class TasksSchema(BaseModel):
+    id: UUID4 = Field(default_factory=uuid.uuid4)
     done: bool
     title: str
     created_at: datetime
@@ -39,12 +41,12 @@ class Tasks(BaseModel):
     to_datetime: datetime
     location: str
     repeat_mode: EventRepeatMode
-    repeat_day: str
+    repeat_days: str
     repeat_end: date
 
 
-class Events(BaseModel):
-    id: UUID4
+class EventsSchema(BaseModel):
+    id: UUID4 = Field(default_factory=uuid.uuid4)
     title: str
     created_at: datetime
     edited_at: datetime
@@ -54,17 +56,18 @@ class Events(BaseModel):
     to_datetime: datetime
     location: str
     is_online_event: bool
+    photo_uri: List[str]
     repeat_mode: EventRepeatMode
-    repeat_day: str
+    repeat_days: str
     repeat_end: date
     source: str
-    owner_id: UUID4 #Возможно юзер
 
-class TaskUser(BaseModel):
+
+class TaskUserSchema(BaseModel):
     task_id: UUID4
     user_id: UUID4
 
-class EventUser(BaseModel):
+class EventUserSchema(BaseModel):
     event_id: UUID4
     user_id: UUID4
     is_viewed: bool
@@ -72,11 +75,11 @@ class EventUser(BaseModel):
     is_hidden: bool
     is_reminder_on: bool
 
-class EventTag(BaseModel):
+class EventTagSchema(BaseModel):
     event_id: UUID4
     tag_id: UUID4
 
-class Tags(BaseModel):
+class TagsSchema(BaseModel):
     id: UUID4
     title: str
     description: str

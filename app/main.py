@@ -11,6 +11,8 @@ from platform_services.service import PlatformService, get_general_settings
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from uvicorn import run
 
+from app.routers.events_router import events_router
+
 logger = getLogger(__name__)
 
 
@@ -46,5 +48,6 @@ def create_app() -> Union[FastAPI, SentryAsgiMiddleware]:
         KeycloakWrapper,
         RabbitMQWrapper,
     )
+    service.app.include_router(events_router, prefix='/events')
 
     return service.runnable  # type: ignore
