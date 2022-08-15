@@ -1,10 +1,23 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 from pydantic.types import UUID4
 from datetime import datetime, date
 import uuid
 from enum import Enum
+
+
+class Rights(Enum):
+    owner = 'rwsd'
+    close = '----'
+    public = 'r-s-'
+    moderator = 'rws-'
+    read_only = 'r---'
+
+    @classmethod
+    def get_rights(cls, value):
+        return [x.value for x in cls if x.value == value][0]
+
 
 class Gender(Enum):
     male = 'male'
@@ -49,9 +62,8 @@ class EventsSchema(BaseModel):
     id: UUID4 = Field(default_factory=uuid.uuid4)
     title: str
     created_at: datetime
-    edited_at: datetime
+    edited_at: datetime = None
     description: str
-    icon: str
     from_datetime: datetime
     to_datetime: datetime
     location: str
@@ -61,6 +73,8 @@ class EventsSchema(BaseModel):
     repeat_days: str
     repeat_end: date
     source: str
+    owner_id: Optional[UUID4]
+    default_permissions: str = 'r-s-'
 
 
 class TaskUserSchema(BaseModel):
@@ -70,10 +84,11 @@ class TaskUserSchema(BaseModel):
 class EventUserSchema(BaseModel):
     event_id: UUID4
     user_id: UUID4
-    is_viewed: bool
-    is_accepted: bool
-    is_hidden: bool
-    is_reminder_on: bool
+    permissions: str
+    is_viewed: bool = False
+    is_accepted: bool = None
+    is_hidden: bool = False
+    is_remider_on: bool = True
 
 class EventTagSchema(BaseModel):
     event_id: UUID4
@@ -83,3 +98,4 @@ class TagsSchema(BaseModel):
     id: UUID4
     title: str
     description: str
+

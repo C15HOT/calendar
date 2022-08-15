@@ -1,8 +1,6 @@
 from sqlalchemy import create_engine
-from app.settings import get_settings
 from models import Base
 
-settings = get_settings()
 
 
 if __name__=='__main__':

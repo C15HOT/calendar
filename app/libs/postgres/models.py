@@ -177,7 +177,7 @@ class Event(Base):
     repeat_end = Column(Date)
     source = Column(String)
     owner_id = Column(ForeignKey('users.id'))
-
+    default_permissions = Column(String(4))
     owner = relationship('User')
     tags = relationship('Tag', secondary='event_tag')
 
@@ -324,15 +324,16 @@ t_event_tag = Table(
 class EventUser(Base):
     __tablename__ = 'event_user'
 
-    event_id = Column(ForeignKey('events.id'), primary_key=True, nullable=False)
-    user_id = Column(ForeignKey('users.id'), primary_key=True, nullable=False)
+    event_id = Column(ForeignKey('events.id', ondelete="CASCADE"), primary_key=True, nullable=False)
+    user_id = Column(ForeignKey('users.id', ondelete="CASCADE"), primary_key=True, nullable=False)
+    permissions = Column(String(4))
     is_viewed = Column(Boolean, server_default=text("false"))
-    is_accepted = Column(Boolean, server_default=text("false"))
+    is_accepted = Column(Boolean, nullable=True)
     is_hidden = Column(Boolean, server_default=text("false"))
     is_remider_on = Column(Boolean, server_default=text("true"))
 
-    event = relationship('Event')
-    user = relationship('User')
+    event = relationship('Event', cascade='all, delete')
+    user = relationship('User', cascade='all, delete')
 
 
 t_note_user = Table(

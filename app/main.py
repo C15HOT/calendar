@@ -48,6 +48,6 @@ def create_app() -> Union[FastAPI, SentryAsgiMiddleware]:
         KeycloakWrapper,
         RabbitMQWrapper,
     )
-    service.app.include_router(events_router, prefix='/events')
+    service.app.include_router(events_router, prefix='/calendar')
 
     return service.runnable  # type: ignore
