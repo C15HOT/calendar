@@ -1,4 +1,6 @@
 # coding: utf-8
+import uuid
+
 from sqlalchemy import ARRAY, BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey, ForeignKeyConstraint, Integer, JSON, String, Table, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -16,7 +18,7 @@ class Attachment(Base):
     created_at = Column(DateTime)
     edited_at = Column(DateTime)
     uri = Column(String, nullable=False)
-    default_permissions = Column(String(4), server_default=text("'r-s-'::character varying"))
+    default_permissions = Column(String(9), server_default=text("'r-s-'::character varying"))
 
     workspaces = relationship('Workspace', secondary='workspace_attachment')
 
@@ -101,7 +103,7 @@ class Task(Base):
 class User(Base):
     __tablename__ = 'users'
 
-    id = Column(UUID, primary_key=True)
+    id = Column(UUID(as_uuid=True), primary_key=True)
     username = Column(String, nullable=False, unique=True)
     firstname = Column(String, nullable=False)
     lastname = Column(String, nullable=False)
@@ -138,7 +140,7 @@ class AttachmentUser(Base):
 
     attachment_id = Column(ForeignKey('attachments.id'), primary_key=True, nullable=False)
     user_id = Column(ForeignKey('users.id'), primary_key=True, nullable=False)
-    permissions = Column(String(4))
+    permissions = Column(String(9))
 
     attachment = relationship('Attachment')
     user = relationship('User')
@@ -162,7 +164,7 @@ class ChatUser(Base):
 class Event(Base):
     __tablename__ = 'events'
 
-    id = Column(UUID(as_uuid=True), primary_key=True)
+    id = Column(UUID(as_uuid=True), default=uuid.uuid4, primary_key=True)
     title = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=text("now()"))
     edited_at = Column(DateTime)
@@ -177,7 +179,7 @@ class Event(Base):
     repeat_end = Column(Date)
     source = Column(String)
     owner_id = Column(ForeignKey('users.id'))
-    default_permissions = Column(String(4))
+    default_permissions = Column(String(9))
     owner = relationship('User')
     tags = relationship('Tag', secondary='event_tag')
 
@@ -256,7 +258,7 @@ class Note(Base):
     content = Column(String)
     owner_id = Column(ForeignKey('users.id'))
     attachments = Column(ARRAY(UUID()))
-    default_permissions = Column(String(4), server_default=text("'----'::character varying"))
+    default_permissions = Column(String(9), server_default=text("'----'::character varying"))
 
     owner = relationship('User')
 
@@ -326,7 +328,8 @@ class EventUser(Base):
 
     event_id = Column(ForeignKey('events.id', ondelete="CASCADE"), primary_key=True, nullable=False)
     user_id = Column(ForeignKey('users.id', ondelete="CASCADE"), primary_key=True, nullable=False)
-    permissions = Column(String(4))
+    permissions = Column(String(9))
+    is_liked = Column(Boolean, server_default=text("false"))
     is_viewed = Column(Boolean, server_default=text("false"))
     is_accepted = Column(Boolean, nullable=True)
     is_hidden = Column(Boolean, server_default=text("false"))
@@ -343,7 +346,7 @@ t_note_user = Table(
     Column('is_viewed', Boolean, server_default=text("false")),
     Column('is_liked', Boolean, server_default=text("false")),
     Column('is_hidden', Boolean, server_default=text("false")),
-    Column('permissions', String(4))
+    Column('permissions', String(9))
 )
 
 

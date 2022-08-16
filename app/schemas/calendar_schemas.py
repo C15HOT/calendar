@@ -8,11 +8,13 @@ from enum import Enum
 
 
 class Rights(Enum):
-    owner = 'rwsd'
-    close = '----'
-    public = 'r-s-'
-    moderator = 'rws-'
-    read_only = 'r---'
+    owner = 'rwsdpimgo'
+    close = '---------'
+    public = 'r-s--i---'
+    moderator = 'rws-pim--'
+    admin = 'rws-pimg-'
+    read_only = 'r--------'
+
 
     @classmethod
     def get_rights(cls, value):
@@ -74,7 +76,7 @@ class EventsSchema(BaseModel):
     repeat_end: date
     source: str
     owner_id: Optional[UUID4]
-    default_permissions: str = 'r-s-'
+    default_permissions: Rights = Rights.public
 
 
 class TaskUserSchema(BaseModel):
