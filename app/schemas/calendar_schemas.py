@@ -56,9 +56,23 @@ class TasksSchema(BaseModel):
     to_datetime: datetime
     location: str
     repeat_mode: EventRepeatMode
-    repeat_days: str
+    repeat_days: Optional[List[int]]
     repeat_end: date
+    repeat_dates: Optional[List[date]]
+    repeat_interval: Optional[int]
+    parent_task: Optional[UUID4]
+    owner_id: Optional[UUID4]
+    default_permissions: Rights = Rights.public
 
+
+class WeekDays(Enum):
+    monday = 0
+    tuesday = 1
+    wednesday = 2
+    thursday = 3
+    friday = 4
+    saturday = 5
+    sunday = 6
 
 class EventsSchema(BaseModel):
     id: UUID4 = Field(default_factory=uuid.uuid4)
@@ -72,8 +86,10 @@ class EventsSchema(BaseModel):
     is_online_event: bool
     photo_uri: List[str]
     repeat_mode: EventRepeatMode
-    repeat_days: str
+    repeat_days: Optional[List[int]]
     repeat_end: date
+    repeat_dates: Optional[List[date]]
+    repeat_interval: Optional[int]
     source: str
     owner_id: Optional[UUID4]
     default_permissions: Rights = Rights.public
@@ -82,6 +98,11 @@ class EventsSchema(BaseModel):
 class TaskUserSchema(BaseModel):
     task_id: UUID4
     user_id: UUID4
+    permissions: str
+    is_viewed: bool = False
+    is_accepted: bool = None
+    is_hidden: bool = False
+
 
 class EventUserSchema(BaseModel):
     event_id: UUID4

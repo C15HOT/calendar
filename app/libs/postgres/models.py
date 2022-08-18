@@ -1,7 +1,8 @@
 # coding: utf-8
 import uuid
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey, ForeignKeyConstraint, Integer, JSON, String, Table, text
+from sqlalchemy import ARRAY, BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey, ForeignKeyConstraint, \
+    Integer, JSON, String, Table, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -14,7 +15,9 @@ class Attachment(Base):
     __tablename__ = 'attachments'
 
     id = Column(UUID, primary_key=True)
-    type = Column(Enum('link', 'image', 'document', 'other', 'message', 'note', 'event', 'news', name='ATTACHMENT_TYPE'), nullable=False)
+    type = Column(
+        Enum('link', 'image', 'document', 'other', 'message', 'note', 'event', 'news', name='ATTACHMENT_TYPE'),
+        nullable=False)
     created_at = Column(DateTime)
     edited_at = Column(DateTime)
     uri = Column(String, nullable=False)
@@ -79,27 +82,6 @@ class Tag(Base):
     title = Column(String, nullable=False, unique=True)
     description = Column(String)
 
-
-class Task(Base):
-    __tablename__ = 'tasks'
-
-    id = Column(UUID, primary_key=True)
-    done = Column(Boolean, server_default=text("false"))
-    title = Column(String, nullable=False)
-    created_at = Column(DateTime, nullable=False)
-    edited_at = Column(DateTime, nullable=False)
-    description = Column(String)
-    icon = Column(String)
-    from_datetime = Column(DateTime)
-    to_datetime = Column(DateTime)
-    location = Column(String)
-    repeat_mode = Column(Enum('no_repeat', 'interval', 'week_days', name='EVENT_REPEAT_MODE'), nullable=False)
-    repeat_days = Column(String, comment='if repeat_mode == week_days only')
-    repeat_end = Column(Date)
-
-    users = relationship('User', secondary='task_user')
-
-
 class User(Base):
     __tablename__ = 'users'
 
@@ -114,6 +96,87 @@ class User(Base):
     join_date = Column(Date, nullable=False, server_default=text("now()"))
     is_online = Column(Boolean, nullable=False, server_default=text("false"))
     last_seen = Column(DateTime, nullable=False, server_default=text("now()"))
+
+
+class Event(Base):
+    __tablename__ = 'events'
+
+    id = Column(UUID(as_uuid=True), default=uuid.uuid4, primary_key=True)
+    title = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=text("now()"))
+    edited_at = Column(DateTime)
+    description = Column(String)
+    from_datetime = Column(DateTime, nullable=False)
+    to_datetime = Column(DateTime, nullable=False)
+    location = Column(String, nullable=False)
+    is_online_event = Column(Boolean, nullable=False)
+    photo_uri = Column(ARRAY(String()))
+    repeat_mode = Column(Enum('no_repeat', 'interval', 'week_days', name='EVENT_REPEAT_MODE'), nullable=False)
+    repeat_days = Column(ARRAY(Integer))
+    repeat_end = Column(Date)
+    repeat_dates = Column(ARRAY(Date))
+    repeat_interval = Column(Integer)
+    source = Column(String)
+    owner_id = Column(ForeignKey('users.id'))
+    default_permissions = Column(String(9))
+    owner = relationship('User')
+    tags = relationship('Tag', secondary='event_tag')
+
+
+class EventUser(Base):
+    __tablename__ = 'event_user'
+
+    event_id = Column(ForeignKey('events.id', ondelete="CASCADE"), primary_key=True, nullable=False)
+    user_id = Column(ForeignKey('users.id', ondelete="CASCADE"), primary_key=True, nullable=False)
+    permissions = Column(String(9))
+    is_liked = Column(Boolean, server_default=text("false"))
+    is_viewed = Column(Boolean, server_default=text("false"))
+    is_accepted = Column(Boolean, nullable=True)
+    is_hidden = Column(Boolean, server_default=text("false"))
+    is_remider_on = Column(Boolean, server_default=text("true"))
+
+    event = relationship('Event', cascade='all, delete')
+    user = relationship('User', cascade='all, delete')
+
+
+class Task(Base):
+    __tablename__ = 'tasks'
+
+    id = Column(UUID(as_uuid=True), default=uuid.uuid4, primary_key=True)
+    done = Column(Boolean, server_default=text("false"))
+    title = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=text("now()"))
+    edited_at = Column(DateTime)
+    description = Column(String)
+    icon = Column(String)
+    from_datetime = Column(DateTime)
+    to_datetime = Column(DateTime)
+    location = Column(String)
+    repeat_mode = Column(Enum('no_repeat', 'interval', 'week_days', name='EVENT_REPEAT_MODE'), nullable=False)
+    repeat_days = Column(ARRAY(Integer))
+    repeat_end = Column(Date)
+    repeat_dates = Column(ARRAY(Date))
+    repeat_interval = Column(Integer)
+    parent_task = Column(UUID(as_uuid=True))
+    owner_id = Column(ForeignKey('users.id'))
+    default_permissions = Column(String(9))
+    owner = relationship('User')
+
+
+class TaskUser(Base):
+    __tablename__ = 'task_user'
+
+    task_id = Column(ForeignKey('tasks.id', ondelete="CASCADE"), primary_key=True, nullable=False)
+    user_id = Column(ForeignKey('users.id', ondelete="CASCADE"), primary_key=True, nullable=False)
+    permissions = Column(String(9))
+    is_viewed = Column(Boolean, server_default=text("false"))
+    is_accepted = Column(Boolean, nullable=True)
+    is_hidden = Column(Boolean, server_default=text("false"))
+
+    task = relationship('Task', cascade='all, delete')
+    user = relationship('User', cascade='all, delete')
+
+
 
 
 class UserIntegration(User):
@@ -159,29 +222,6 @@ class ChatUser(Base):
 
     chat = relationship('Chat')
     user = relationship('User')
-
-
-class Event(Base):
-    __tablename__ = 'events'
-
-    id = Column(UUID(as_uuid=True), default=uuid.uuid4, primary_key=True)
-    title = Column(String, nullable=False)
-    created_at = Column(DateTime, nullable=False, server_default=text("now()"))
-    edited_at = Column(DateTime)
-    description = Column(String)
-    from_datetime = Column(DateTime, nullable=False)
-    to_datetime = Column(DateTime, nullable=False)
-    location = Column(String, nullable=False)
-    is_online_event = Column(Boolean, nullable=False)
-    photo_uri = Column(ARRAY(String()))
-    repeat_mode = Column(Enum('no_repeat', 'interval', 'week_days', name='EVENT_REPEAT_MODE'), nullable=False)
-    repeat_days = Column(String)
-    repeat_end = Column(Date)
-    source = Column(String)
-    owner_id = Column(ForeignKey('users.id'))
-    default_permissions = Column(String(9))
-    owner = relationship('User')
-    tags = relationship('Tag', secondary='event_tag')
 
 
 t_group_chats = Table(
@@ -235,7 +275,6 @@ t_news_tag = Table(
     Column('news_id', ForeignKey('news.id'), primary_key=True, nullable=False),
     Column('tag_id', ForeignKey('tags.id'), primary_key=True, nullable=False)
 )
-
 
 t_news_user = Table(
     'news_user', metadata,
@@ -294,11 +333,11 @@ class Subscriber(Base):
     user = relationship('User', primaryjoin='Subscriber.user_id == User.id')
 
 
-t_task_user = Table(
-    'task_user', metadata,
-    Column('task_id', ForeignKey('tasks.id'), primary_key=True, nullable=False),
-    Column('user_id', ForeignKey('users.id'), primary_key=True, nullable=False)
-)
+# t_task_user = Table(
+#     'task_user', metadata,
+#     Column('task_id', ForeignKey('tasks.id'), primary_key=True, nullable=False),
+#     Column('user_id', ForeignKey('users.id'), primary_key=True, nullable=False)
+# )
 
 
 class Workspace(Base):
@@ -322,23 +361,6 @@ t_event_tag = Table(
     Column('tag_id', ForeignKey('tags.id'), primary_key=True, nullable=False)
 )
 
-
-class EventUser(Base):
-    __tablename__ = 'event_user'
-
-    event_id = Column(ForeignKey('events.id', ondelete="CASCADE"), primary_key=True, nullable=False)
-    user_id = Column(ForeignKey('users.id', ondelete="CASCADE"), primary_key=True, nullable=False)
-    permissions = Column(String(9))
-    is_liked = Column(Boolean, server_default=text("false"))
-    is_viewed = Column(Boolean, server_default=text("false"))
-    is_accepted = Column(Boolean, nullable=True)
-    is_hidden = Column(Boolean, server_default=text("false"))
-    is_remider_on = Column(Boolean, server_default=text("true"))
-
-    event = relationship('Event', cascade='all, delete')
-    user = relationship('User', cascade='all, delete')
-
-
 t_note_user = Table(
     'note_user', metadata,
     Column('note_id', ForeignKey('notes.id')),
@@ -353,7 +375,8 @@ t_note_user = Table(
 class OrganizationUser(Base):
     __tablename__ = 'organization_user'
     __table_args__ = (
-        ForeignKeyConstraint(['organization_id', 'role_id'], ['organization_roles.organization_id', 'organization_roles.role_id']),
+        ForeignKeyConstraint(['organization_id', 'role_id'],
+                             ['organization_roles.organization_id', 'organization_roles.role_id']),
     )
 
     organization_id = Column(ForeignKey('organizations.id'), primary_key=True, nullable=False)

@@ -12,6 +12,7 @@ from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from uvicorn import run
 
 from app.routers.events_router import events_router
+from app.routers.tasks_router import tasks_router
 
 logger = getLogger(__name__)
 
@@ -48,6 +49,7 @@ def create_app() -> Union[FastAPI, SentryAsgiMiddleware]:
         KeycloakWrapper,
         RabbitMQWrapper,
     )
-    service.app.include_router(events_router, prefix='/calendar')
+    service.app.include_router(events_router, prefix='/calendar'),
+    service.app.include_router(tasks_router, prefix='/calendar')
 
     return service.runnable  # type: ignore

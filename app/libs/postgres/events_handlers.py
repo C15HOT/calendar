@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Dict, Union, Optional
 
 from fastapi import HTTPException, status
@@ -10,12 +10,14 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.elements import and_, or_
 
 from app.libs.postgres.models import Event, EventUser, User
-from app.schemas.calendar_schemas import EventsSchema, Rights, EventUserSchema
+from app.schemas.calendar_schemas import EventsSchema, Rights, EventUserSchema, EventRepeatMode, WeekDays
 from app.settings import get_settings
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy import update, delete
 from sqlalchemy.dialects.postgresql import insert
+
+import datetime as d
 
 settings = get_settings()
 
@@ -44,9 +46,38 @@ async def check_event_exits_and_user_rights(event_id: UUID4,
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail='Event not found')
 
 
+async def get_dates_from_date_interval(end_date: date,
+                                       repeat_days: Optional[List[int]],
+                                       repeat_interval: Optional[int],
+                                       repeat_mode: EventRepeatMode) -> List[date]:
+    start_date = date.today()
+    all_dates = []
+    repeat_dates = []
+    if repeat_mode == EventRepeatMode.week_days:
+        while start_date <= end_date:
+            all_dates.append(start_date)
+            start_date += d.timedelta(days=1)
+        for day in repeat_days:
+            for data in all_dates:
+                print(day, data.weekday())
+                if data.weekday() == day:
+                    repeat_dates.append(data)
+        return sorted(repeat_dates)
+    elif repeat_mode == EventRepeatMode.interval:
+        while start_date <= end_date:
+            repeat_dates.append(start_date)
+            start_date += d.timedelta(days=repeat_interval)
+        return sorted(repeat_dates)
+
+
 async def insert_event(event: EventsSchema,
                        owner_id: UUID4):
     async with async_session() as session:
+        if event.repeat_mode != EventRepeatMode.no_repeat:
+            event.repeat_dates = await get_dates_from_date_interval(end_date=event.repeat_end,
+                                                                    repeat_days=event.repeat_days,
+                                                                    repeat_interval=event.repeat_interval,
+                                                                    repeat_mode=event.repeat_mode)
         new_event = Event(id=event.id,
                           title=event.title,
                           description=event.description,
@@ -58,6 +89,8 @@ async def insert_event(event: EventsSchema,
                           repeat_mode=event.repeat_mode.value,
                           repeat_days=event.repeat_days,
                           repeat_end=event.repeat_end,
+                          repeat_dates=event.repeat_dates,
+                          repeat_interval=event.repeat_interval,
                           source=event.source,
                           owner_id=owner_id,
                           default_permissions=event.default_permissions.value
@@ -78,11 +111,18 @@ async def insert_event(event: EventsSchema,
         return new_event
 
 
-async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4):
+async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4, generate_dates_interval: bool):
     async with async_session() as session:
         rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id)
         if 'w' in rights:
-            stmt = update(Event).where(Event.id == event_id).values(id=Event.id, title=event.title,
+            if generate_dates_interval:
+                if event.repeat_mode != EventRepeatMode.no_repeat:
+                    event.repeat_dates = await get_dates_from_date_interval(end_date=event.repeat_end,
+                                                                            repeat_days=event.repeat_days,
+                                                                            repeat_interval=event.repeat_interval,
+                                                                            repeat_mode=event.repeat_mode)
+            stmt = update(Event).where(Event.id == event_id).values(id=Event.id,
+                                                                    title=event.title,
                                                                     description=event.description,
                                                                     from_datetime=event.from_datetime.replace(
                                                                         tzinfo=None),
@@ -95,6 +135,8 @@ async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4):
                                                                     repeat_mode=event.repeat_mode.value,
                                                                     repeat_days=event.repeat_days,
                                                                     repeat_end=event.repeat_end,
+                                                                    repeat_dates=event.repeat_dates,
+                                                                    repeat_interval=event.repeat_interval,
                                                                     source=event.source,
                                                                     default_permissions=event.default_permissions.value)
 
@@ -104,6 +146,57 @@ async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4):
             return event
         else:
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
+
+
+async def change_next_repeat_and_create_new_event(event_id: UUID4, event: EventsSchema, user_id: UUID4) -> Event:
+    async with async_session() as session:
+        changing_event, rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id, return_event=True)
+        if 'w' in rights:
+            start_date = date.today()
+            if changing_event.repeat_dates:
+                repeat_dates = sorted([x for x in changing_event.repeat_dates if x >= start_date])
+
+                changing_date = repeat_dates[0]
+                repeat_dates.pop(0)
+
+                stmt = update(Event).where(Event.id == event_id).values(id=Event.id,
+                                                                        repeat_dates=repeat_dates,
+                                                                        )
+
+                await session.execute(stmt)
+                new_event = Event(id=event.id,
+                                  title=event.title,
+                                  description=event.description,
+                                  from_datetime=changing_date,
+                                  to_datetime=changing_date,
+                                  location=event.location,
+                                  is_online_event=event.is_online_event,
+                                  photo_uri=event.photo_uri,
+                                  repeat_mode=event.repeat_mode.value,
+                                  repeat_days=event.repeat_days,
+                                  repeat_end=event.repeat_end,
+                                  repeat_dates=event.repeat_dates,
+                                  repeat_interval=event.repeat_interval,
+                                  source=event.source,
+                                  owner_id=user_id,
+                                  default_permissions=event.default_permissions.value
+                                  )
+
+                new_event_user = EventUser(
+                    event_id=event.id,
+                    user_id=user_id,
+                    permissions=Rights.owner.value,
+                    is_viewed=True,
+                    is_accepted=True,
+                )
+
+
+                session.add(new_event)
+                session.add(new_event_user)
+                await session.commit()
+                return new_event
+            else:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, detail='Event have not repeat dates')
 
 
 async def delete_event(event_id: UUID4, user_id: UUID4):
@@ -128,10 +221,12 @@ async def get_event(event_id: UUID4, user_id: UUID4) -> Event:
 async def get_events(user_id: UUID4) -> List[Event]:
     async with async_session() as session:
         stmt = select(Event).select_from(EventUser).where(EventUser.user_id == user_id,
-                                                          EventUser.is_accepted == True).join(Event, Event.id == EventUser.event_id)
+                                                          EventUser.is_accepted == True).join(Event,
+                                                                                              Event.id == EventUser.event_id)
         result = await session.execute(stmt)
         events = result.scalars().all()
         return events
+
 
 async def find_events_by_filters(owner_id: UUID4, title: str, location: str, from_datetime: datetime,
                                  to_datetime: datetime):
@@ -358,6 +453,7 @@ async def clone_event(event_id: UUID4, user_id: UUID4):
                 session.add(new_event_user)
             await session.commit()
             return new_event
+
 
 async def like_event(event_id: UUID4, user_id: UUID4):
     async with async_session() as session:

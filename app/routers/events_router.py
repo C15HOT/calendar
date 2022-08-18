@@ -3,10 +3,10 @@ from app.schemas.calendar_schemas import *
 from app.libs.auth import auth_required
 from fastapi import status, HTTPException
 from app.settings import get_settings
-from app.libs.postgres.handlers import insert_event, get_event, edit_event, delete_event, \
+from app.libs.postgres.events_handlers import insert_event, get_event, edit_event, delete_event, \
     find_events_by_filters, invite_user, accept_to_event, reject_invite_to_event, join_to_event, leave_the_event, \
     delete_user_from_event, hide_event_for_user, transfer_owner_rights, get_event_participants, clone_event, like_event, \
-    get_events
+    get_events, change_next_repeat_and_create_new_event
 
 import datetime as d
 
@@ -35,7 +35,7 @@ async def get_event_route(event_id: UUID4,
 
 
 
-@events_router.get('/get_all_users_events/', summary='Get events calendar')
+@events_router.get('/events/', summary='Get events calendar')
 async def get_events_route(user_id: UUID4 = Depends(auth_required)):
         events = await get_events(user_id=user_id)
         return events
@@ -46,11 +46,19 @@ async def get_events_route(user_id: UUID4 = Depends(auth_required)):
 @events_router.put('/{evend_id}/info/edit', summary='Update event')
 async def edit_event_route(event_id: UUID4,
                        event: EventsSchema,
+                           generate_dates_interval: bool = True,
                        user_id: UUID4 = Depends(auth_required)):
 
-    updated_event = await edit_event(event_id=event_id, user_id=user_id,
+    updated_event = await edit_event(event_id=event_id, user_id=user_id, generate_dates_interval=generate_dates_interval,
                                      event=event)
     return updated_event
+
+@events_router.post('/{event_id}/change_next_repeat', summary='Delete next repeat and create new event on next date')
+async def change_next_repeat_route(event_id: UUID4,
+                                   event: EventsSchema,
+                                   user_id: UUID4 = Depends(auth_required)):
+    new_event = await change_next_repeat_and_create_new_event(event_id=event_id, event=event, user_id=user_id)
+    return new_event
 
 
 
