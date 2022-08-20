@@ -46,7 +46,6 @@ class EventRepeatMode(Enum):
 
 class TasksSchema(BaseModel):
     id: UUID4 = Field(default_factory=uuid.uuid4)
-    done: bool
     title: str
     created_at: datetime
     edited_at: datetime
@@ -99,6 +98,8 @@ class TaskUserSchema(BaseModel):
     task_id: UUID4
     user_id: UUID4
     permissions: str
+    is_liked: bool = False
+    is_done: bool = False
     is_viewed: bool = False
     is_accepted: bool = None
     is_hidden: bool = False

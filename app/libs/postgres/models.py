@@ -82,6 +82,7 @@ class Tag(Base):
     title = Column(String, nullable=False, unique=True)
     description = Column(String)
 
+
 class User(Base):
     __tablename__ = 'users'
 
@@ -143,7 +144,6 @@ class Task(Base):
     __tablename__ = 'tasks'
 
     id = Column(UUID(as_uuid=True), default=uuid.uuid4, primary_key=True)
-    done = Column(Boolean, server_default=text("false"))
     title = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=text("now()"))
     edited_at = Column(DateTime)
@@ -169,14 +169,14 @@ class TaskUser(Base):
     task_id = Column(ForeignKey('tasks.id', ondelete="CASCADE"), primary_key=True, nullable=False)
     user_id = Column(ForeignKey('users.id', ondelete="CASCADE"), primary_key=True, nullable=False)
     permissions = Column(String(9))
+    is_done = Column(Boolean, server_default=text("false"))
+    is_liked = Column(Boolean, server_default=text("false"))
     is_viewed = Column(Boolean, server_default=text("false"))
     is_accepted = Column(Boolean, nullable=True)
     is_hidden = Column(Boolean, server_default=text("false"))
 
     task = relationship('Task', cascade='all, delete')
     user = relationship('User', cascade='all, delete')
-
-
 
 
 class UserIntegration(User):

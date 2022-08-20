@@ -17,13 +17,9 @@ settings = get_settings()
 @events_router.post('/create/', summary='Add event calendar. Access: all authenticated users')
 async def add_event_route(event: EventsSchema,
                     owner_id: UUID4 = Depends(auth_required)):
-    try:
-        new_event = await insert_event(event=event, owner_id=owner_id)
-    except BaseException as exc:
-        print('\n')
-        print(exc)
-        print('\n')
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to write event to database')
+
+    new_event = await insert_event(event=event, owner_id=owner_id)
+
     return new_event
 
 

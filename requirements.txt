@@ -28,7 +28,7 @@ jinja2-time==0.2.0
 MarkupSafe==2.1.1
 multidict==6.0.2
 pamqp==3.2.0
-platform-services @ git+ssh://git@github.com/avatar-project/platform-services-wrappers@3870ca15513937bf105971894456c69e2bf5c8af
+platform-services @ git+https://gitlab.actcognitive.org/avatar/platform_services@1.0.0rc0
 psycopg2==2.9.3
 psycopg2-binary==2.9.3
 pyasn1==0.4.8

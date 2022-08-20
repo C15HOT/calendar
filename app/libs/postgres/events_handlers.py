@@ -1,21 +1,24 @@
 import uuid
 from datetime import datetime, date
-from typing import List, Dict, Union, Optional
+from typing import List, Union, Optional
 
+from aio_pika import ExchangeType
 from fastapi import HTTPException, status
 from pydantic import UUID4
 
 from sqlalchemy.future import select
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.sql.elements import and_, or_
+from sqlalchemy.sql.elements import  or_
 
 from app.libs.postgres.models import Event, EventUser, User
-from app.schemas.calendar_schemas import EventsSchema, Rights, EventUserSchema, EventRepeatMode, WeekDays
+from app.schemas.calendar_schemas import EventsSchema, Rights,EventRepeatMode
 from app.settings import get_settings
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy import update, delete
 from sqlalchemy.dialects.postgresql import insert
+
+from platform_services.rabbitmq import RabbitMQWrapper
 
 import datetime as d
 
@@ -24,6 +27,19 @@ settings = get_settings()
 connection = f'{settings.postgres_settings.postgres_server}{settings.postgres_settings.postgres_db}'
 engine = create_async_engine(connection, echo=True)
 async_session = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+
+async def create_exchange_and_bind_queue(exchange_name: str, queue_name: str) -> None:
+    rabbit_mq = RabbitMQWrapper()
+    await rabbit_mq.startup_event_handler()
+    async with rabbit_mq.channel_pool.acquire() as channel:
+        try:
+            queue = await channel.get_queue(name=queue_name, ensure=True)
+        except:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f'Queue for user {queue_name} not found')
+        exchange = await channel.declare_exchange(name=exchange_name, type=ExchangeType.FANOUT, auto_delete=True)
+        await queue.bind(exchange)
+    await rabbit_mq.shutdown_event_handler()
 
 
 async def check_event_exits_and_user_rights(event_id: UUID4,
@@ -71,7 +87,7 @@ async def get_dates_from_date_interval(end_date: date,
 
 
 async def insert_event(event: EventsSchema,
-                       owner_id: UUID4):
+                       owner_id: UUID4) -> Event:
     async with async_session() as session:
         if event.repeat_mode != EventRepeatMode.no_repeat:
             event.repeat_dates = await get_dates_from_date_interval(end_date=event.repeat_end,
@@ -103,15 +119,17 @@ async def insert_event(event: EventsSchema,
             is_viewed=True,
             is_accepted=True,
         )
-
+        await create_exchange_and_bind_queue(exchange_name=str(event.id), queue_name=str(owner_id))
         async with session.begin():
             session.add(new_event)
             session.add(new_event_user)
         await session.commit()
+
+
         return new_event
 
 
-async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4, generate_dates_interval: bool):
+async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4, generate_dates_interval: bool) -> EventsSchema:
     async with async_session() as session:
         rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id)
         if 'w' in rights:
@@ -150,7 +168,8 @@ async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4, gener
 
 async def change_next_repeat_and_create_new_event(event_id: UUID4, event: EventsSchema, user_id: UUID4) -> Event:
     async with async_session() as session:
-        changing_event, rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id, return_event=True)
+        changing_event, rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id,
+                                                                         return_event=True)
         if 'w' in rights:
             start_date = date.today()
             if changing_event.repeat_dates:
@@ -190,7 +209,6 @@ async def change_next_repeat_and_create_new_event(event_id: UUID4, event: Events
                     is_accepted=True,
                 )
 
-
                 session.add(new_event)
                 session.add(new_event_user)
                 await session.commit()
@@ -199,7 +217,7 @@ async def change_next_repeat_and_create_new_event(event_id: UUID4, event: Events
                 raise HTTPException(status.HTTP_404_NOT_FOUND, detail='Event have not repeat dates')
 
 
-async def delete_event(event_id: UUID4, user_id: UUID4):
+async def delete_event(event_id: UUID4, user_id: UUID4) -> None:
     async with async_session() as session:
         rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id)
         if 'd' in rights:
@@ -229,7 +247,7 @@ async def get_events(user_id: UUID4) -> List[Event]:
 
 
 async def find_events_by_filters(owner_id: UUID4, title: str, location: str, from_datetime: datetime,
-                                 to_datetime: datetime):
+                                 to_datetime: datetime) -> List[Event]:
     async with async_session() as session:
         stmt = select(Event).filter(or_(Event.title.like(f'%{title}%'), title == None),
                                     or_(Event.owner_id == str(owner_id), owner_id == None),
@@ -241,7 +259,7 @@ async def find_events_by_filters(owner_id: UUID4, title: str, location: str, fro
         return events
 
 
-async def invite_user(event_id: UUID4, invited_users_id: List[UUID4], user_id: UUID4):
+async def invite_user(event_id: UUID4, invited_users_id: List[UUID4], user_id: UUID4) -> None:
     async with async_session() as session:
         event, rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id, return_event=True)
         if 'i' in rights:
@@ -269,7 +287,7 @@ async def invite_user(event_id: UUID4, invited_users_id: List[UUID4], user_id: U
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
 
 
-async def accept_to_event(event_id: UUID4, user_id: UUID4):
+async def accept_to_event(event_id: UUID4, user_id: UUID4) -> None:
     async with async_session() as session:
 
         event_user = await session.get(EventUser, {'event_id': event_id,
@@ -287,7 +305,7 @@ async def accept_to_event(event_id: UUID4, user_id: UUID4):
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail='Invite not found')
 
 
-async def join_to_event(event_id: UUID4, user_id: UUID4):
+async def join_to_event(event_id: UUID4, user_id: UUID4) -> None:
     async with async_session() as session:
         rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id)
         if 'r' in rights:
@@ -309,7 +327,7 @@ async def join_to_event(event_id: UUID4, user_id: UUID4):
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
 
 
-async def reject_invite_to_event(event_id: UUID4, user_id: UUID4):
+async def reject_invite_to_event(event_id: UUID4, user_id: UUID4) -> None:
     async with async_session() as session:
         event_user = await session.get(EventUser, {'event_id': event_id,
                                                    'user_id': user_id})
@@ -323,7 +341,7 @@ async def reject_invite_to_event(event_id: UUID4, user_id: UUID4):
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail='Invite not found')
 
 
-async def leave_the_event(event_id: UUID4, user_id: UUID4):
+async def leave_the_event(event_id: UUID4, user_id: UUID4) -> None:
     async with async_session() as session:
         event_user = await session.get(EventUser, {'event_id': event_id,
                                                    'user_id': user_id})
@@ -337,7 +355,7 @@ async def leave_the_event(event_id: UUID4, user_id: UUID4):
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail='Invite not found')
 
 
-async def delete_user_from_event(event_id: UUID4, deleted_user_id: UUID4, user_id: UUID4):
+async def delete_user_from_event(event_id: UUID4, deleted_user_id: UUID4, user_id: UUID4) -> None:
     async with async_session() as session:
         rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id)
         if 'm' in rights:
@@ -355,7 +373,7 @@ async def delete_user_from_event(event_id: UUID4, deleted_user_id: UUID4, user_i
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
 
 
-async def hide_event_for_user(event_id: UUID4, user_id: UUID4):
+async def hide_event_for_user(event_id: UUID4, user_id: UUID4) -> None:
     async with async_session() as session:
         event_user = await session.get(EventUser, {'event_id': event_id,
                                                    'user_id': user_id})
@@ -369,7 +387,7 @@ async def hide_event_for_user(event_id: UUID4, user_id: UUID4):
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail='User is not a member of the event')
 
 
-async def transfer_owner_rights(event_id: UUID4, user_id: UUID4, owner_id: UUID4):
+async def transfer_owner_rights(event_id: UUID4, user_id: UUID4, owner_id: UUID4) -> None:
     async with async_session() as session:
         rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=owner_id)
 
@@ -405,7 +423,7 @@ async def transfer_owner_rights(event_id: UUID4, user_id: UUID4, owner_id: UUID4
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
 
 
-async def get_event_participants(event_id: UUID4, user_id: UUID4):
+async def get_event_participants(event_id: UUID4, user_id: UUID4) -> None:
     async with async_session() as session:
         rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id)
         if 'r' in rights:
@@ -419,7 +437,7 @@ async def get_event_participants(event_id: UUID4, user_id: UUID4):
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
 
 
-async def clone_event(event_id: UUID4, user_id: UUID4):
+async def clone_event(event_id: UUID4, user_id: UUID4) -> Event:
     async with async_session() as session:
         event, rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id, return_event=True)
         if 'r' in rights:
@@ -455,7 +473,7 @@ async def clone_event(event_id: UUID4, user_id: UUID4):
             return new_event
 
 
-async def like_event(event_id: UUID4, user_id: UUID4):
+async def like_event(event_id: UUID4, user_id: UUID4) -> None:
     async with async_session() as session:
         event_user = await session.get(EventUser, {'event_id': event_id,
                                                    'user_id': user_id})
