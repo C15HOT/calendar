@@ -112,7 +112,7 @@ class EventUserSchema(BaseModel):
     is_viewed: bool = False
     is_accepted: bool = None
     is_hidden: bool = False
-    is_remider_on: bool = True
+    is_reminder_on: bool = True
 
 class EventTagSchema(BaseModel):
     event_id: UUID4

@@ -134,7 +134,7 @@ class EventUser(Base):
     is_viewed = Column(Boolean, server_default=text("false"))
     is_accepted = Column(Boolean, nullable=True)
     is_hidden = Column(Boolean, server_default=text("false"))
-    is_remider_on = Column(Boolean, server_default=text("true"))
+    is_reminder_on = Column(Boolean, server_default=text("true"))
 
     event = relationship('Event', cascade='all, delete')
     user = relationship('User', cascade='all, delete')

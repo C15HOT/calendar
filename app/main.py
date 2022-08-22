@@ -4,12 +4,15 @@ from typing import Union
 
 from fastapi import FastAPI
 from platform_services.keycloak import KeycloakWrapper
+from platform_services.postgresql import PostgreSQLWrapper
 from platform_services.rabbitmq import RabbitMQWrapper
 from platform_services.redis import RedisWrapper
 from platform_services.sentry import SentryWrapper
 from platform_services.service import PlatformService, get_general_settings
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from uvicorn import run
+
+from app.libs.postgres.listeners import listener
 
 from app.routers.events_router import events_router
 from app.routers.tasks_router import tasks_router
@@ -48,7 +51,11 @@ def create_app() -> Union[FastAPI, SentryAsgiMiddleware]:
         RedisWrapper,
         KeycloakWrapper,
         RabbitMQWrapper,
+        PostgreSQLWrapper
     )
+    pg_wrapper = service.get_wrapper('postgresql')
+
+    pg_wrapper.notify_manager.include_listener(listener)
     service.app.include_router(events_router, prefix='/calendar'),
     service.app.include_router(tasks_router, prefix='/calendar')
 

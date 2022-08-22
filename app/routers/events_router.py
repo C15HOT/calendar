@@ -6,7 +6,7 @@ from app.settings import get_settings
 from app.libs.postgres.events_handlers import insert_event, get_event, edit_event, delete_event, \
     find_events_by_filters, invite_user, accept_to_event, reject_invite_to_event, join_to_event, leave_the_event, \
     delete_user_from_event, hide_event_for_user, transfer_owner_rights, get_event_participants, clone_event, like_event, \
-    get_events, change_next_repeat_and_create_new_event
+    get_events, change_next_repeat_and_create_new_event, remind_event
 
 import datetime as d
 
@@ -164,4 +164,11 @@ async def clone_event_route(event_id: UUID4,
 async def like_event_route(event_id: UUID4,
                            user_id: UUID4 = Depends(auth_required)):
     await like_event(event_id=event_id, user_id=user_id)
+    return status.HTTP_200_OK
+
+
+@events_router.post('/{event_id}/remind', summary='Remind event')
+async def remind_event_route(event_id: UUID4,
+                           user_id: UUID4 = Depends(auth_required)):
+    await remind_event(event_id=event_id, user_id=user_id)
     return status.HTTP_200_OK

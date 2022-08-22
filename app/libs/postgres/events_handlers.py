@@ -263,13 +263,20 @@ async def invite_user(event_id: UUID4, invited_users_id: List[UUID4], user_id: U
     async with async_session() as session:
         event, rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id, return_event=True)
         if 'i' in rights:
-            print(event.default_permissions)
+
             if event.default_permissions == Rights.close.value:
                 permissions = Rights.read_only.value
             else:
                 permissions = Rights.public.value
             invites = []
+
+
             for user_id in invited_users_id:
+                event_user = await session.get(EventUser, {'event_id': event_id,
+                                                           'user_id': user_id})
+                if event_user:
+                    if event_user.is_accepted:
+                        continue
                 new_event_user = {
                     'event_id': event.id,
                     'user_id': str(user_id),
@@ -278,6 +285,8 @@ async def invite_user(event_id: UUID4, invited_users_id: List[UUID4], user_id: U
                 }
                 invites.append(new_event_user)
 
+            if len(invites) == 0:
+                return
             stmt = insert(EventUser).values(invites)
             stmt = stmt.on_conflict_do_update(constraint='event_user_pkey', set_={'is_viewed': stmt.excluded.is_viewed,
                                                                                   'is_accepted': stmt.excluded.is_accepted})
@@ -423,7 +432,7 @@ async def transfer_owner_rights(event_id: UUID4, user_id: UUID4, owner_id: UUID4
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
 
 
-async def get_event_participants(event_id: UUID4, user_id: UUID4) -> None:
+async def get_event_participants(event_id: UUID4, user_id: UUID4) -> List[User]:
     async with async_session() as session:
         rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id)
         if 'r' in rights:
@@ -431,8 +440,8 @@ async def get_event_participants(event_id: UUID4, user_id: UUID4) -> None:
                                                              EventUser.is_accepted == True).join(User,
                                                                                                  User.id == EventUser.user_id)
             result = await session.execute(stmt)
-            events = result.scalars().all()
-            return events
+            participants = result.scalars().all()
+            return participants
         else:
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
 
@@ -480,6 +489,20 @@ async def like_event(event_id: UUID4, user_id: UUID4) -> None:
         if event_user:
             stmt = update(EventUser).where(EventUser.user_id == user_id,
                                            EventUser.event_id == event_id).values(is_liked=not event_user.is_liked)
+
+            await session.execute(stmt)
+            await session.commit()
+        else:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail='User is not a member of the event')
+
+
+async def remind_event(event_id: UUID4, user_id: UUID4) -> None:
+    async with async_session() as session:
+        event_user = await session.get(EventUser, {'event_id': event_id,
+                                                   'user_id': user_id})
+        if event_user:
+            stmt = update(EventUser).where(EventUser.user_id == user_id,
+                                           EventUser.event_id == event_id).values(is_reminder_on=not event_user.is_reminder_on)
 
             await session.execute(stmt)
             await session.commit()
