@@ -48,7 +48,7 @@ class TasksSchema(BaseModel):
     id: UUID4 = Field(default_factory=uuid.uuid4)
     title: str
     created_at: datetime
-    edited_at: datetime
+    edited_at: datetime = None
     description: str
     icon: str
     from_datetime: datetime

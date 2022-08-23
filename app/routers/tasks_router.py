@@ -4,8 +4,6 @@ from app.libs.auth import auth_required
 
 from app.libs.postgres.tasks_handlers import *
 
-
-
 tasks_router = APIRouter(tags=['Tasks'], prefix='/tasks')
 settings = get_settings()
 
@@ -13,13 +11,8 @@ settings = get_settings()
 @tasks_router.post('/create/', summary='Create task')
 async def add_task_route(task: TasksSchema,
                          owner_id: UUID4 = Depends(auth_required)):
-    try:
-        new_task = await insert_task(task=task, owner_id=owner_id)
-    except BaseException as exc:
-        print('\n')
-        print(exc)
-        print('\n')
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to write event to database')
+    new_task = await insert_task(task=task, owner_id=owner_id)
+
     return new_task
 
 

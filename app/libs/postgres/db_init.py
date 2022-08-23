@@ -443,7 +443,7 @@ if __name__=='__main__':
                                "EXECUTE PROCEDURE task_user_undone_notify();")
 
     session = Session(engine)
-    # session.execute(event_create)
+    session.execute(event_create)
     # session.execute(event_update)
     # session.execute(event_delete)
     # session.execute(task_create)
@@ -465,8 +465,8 @@ if __name__=='__main__':
     # session.execute(event_user_unhidden)
     # session.execute(task_user_like)
     # session.execute(task_user_unlike)
-    session.execute(task_user_done)
-    session.execute(task_user_undone)
+    # session.execute(task_user_done)
+    # session.execute(task_user_undone)
     session.commit()
 
 

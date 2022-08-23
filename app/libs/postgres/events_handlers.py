@@ -2,23 +2,20 @@ import uuid
 from datetime import datetime, date
 from typing import List, Union, Optional
 
-from aio_pika import ExchangeType
 from fastapi import HTTPException, status
 from pydantic import UUID4
 
 from sqlalchemy.future import select
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.sql.elements import  or_
+from sqlalchemy.sql.elements import or_
 
 from app.libs.postgres.models import Event, EventUser, User
-from app.schemas.calendar_schemas import EventsSchema, Rights,EventRepeatMode
+from app.schemas.calendar_schemas import EventsSchema, Rights, EventRepeatMode
 from app.settings import get_settings
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy import update, delete
 from sqlalchemy.dialects.postgresql import insert
-
-from platform_services.rabbitmq import RabbitMQWrapper
 
 import datetime as d
 
@@ -27,19 +24,6 @@ settings = get_settings()
 connection = f'{settings.postgres_settings.postgres_server}{settings.postgres_settings.postgres_db}'
 engine = create_async_engine(connection, echo=True)
 async_session = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
-
-
-async def create_exchange_and_bind_queue(exchange_name: str, queue_name: str) -> None:
-    rabbit_mq = RabbitMQWrapper()
-    await rabbit_mq.startup_event_handler()
-    async with rabbit_mq.channel_pool.acquire() as channel:
-        try:
-            queue = await channel.get_queue(name=queue_name, ensure=True)
-        except:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f'Queue for user {queue_name} not found')
-        exchange = await channel.declare_exchange(name=exchange_name, type=ExchangeType.FANOUT, auto_delete=True)
-        await queue.bind(exchange)
-    await rabbit_mq.shutdown_event_handler()
 
 
 async def check_event_exits_and_user_rights(event_id: UUID4,
@@ -119,17 +103,16 @@ async def insert_event(event: EventsSchema,
             is_viewed=True,
             is_accepted=True,
         )
-        await create_exchange_and_bind_queue(exchange_name=str(event.id), queue_name=str(owner_id))
         async with session.begin():
             session.add(new_event)
             session.add(new_event_user)
         await session.commit()
 
-
         return new_event
 
 
-async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4, generate_dates_interval: bool) -> EventsSchema:
+async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4,
+                     generate_dates_interval: bool) -> EventsSchema:
     async with async_session() as session:
         rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id)
         if 'w' in rights:
@@ -142,6 +125,7 @@ async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4, gener
             stmt = update(Event).where(Event.id == event_id).values(id=Event.id,
                                                                     title=event.title,
                                                                     description=event.description,
+
                                                                     from_datetime=event.from_datetime.replace(
                                                                         tzinfo=None),
                                                                     edited_at=datetime.now(),
@@ -172,7 +156,7 @@ async def change_next_repeat_and_create_new_event(event_id: UUID4, event: Events
                                                                          return_event=True)
         if 'w' in rights:
             start_date = date.today()
-            if changing_event.repeat_dates:
+            if changing_event.repeat_mode != EventRepeatMode.no_repeat.value:
                 repeat_dates = sorted([x for x in changing_event.repeat_dates if x >= start_date])
 
                 changing_date = repeat_dates[0]
@@ -208,13 +192,15 @@ async def change_next_repeat_and_create_new_event(event_id: UUID4, event: Events
                     is_viewed=True,
                     is_accepted=True,
                 )
-
                 session.add(new_event)
                 session.add(new_event_user)
                 await session.commit()
+
                 return new_event
             else:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, detail='Event have not repeat dates')
+        else:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
 
 
 async def delete_event(event_id: UUID4, user_id: UUID4) -> None:
@@ -222,8 +208,10 @@ async def delete_event(event_id: UUID4, user_id: UUID4) -> None:
         rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id)
         if 'd' in rights:
             stmt = delete(Event).where(Event.id == event_id)
+
             await session.execute(stmt)
             await session.commit()
+
         else:
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
 
@@ -269,7 +257,6 @@ async def invite_user(event_id: UUID4, invited_users_id: List[UUID4], user_id: U
             else:
                 permissions = Rights.public.value
             invites = []
-
 
             for user_id in invited_users_id:
                 event_user = await session.get(EventUser, {'event_id': event_id,
@@ -329,6 +316,7 @@ async def join_to_event(event_id: UUID4, user_id: UUID4) -> None:
             stmt = insert(EventUser).values(new_event_user)
             stmt = stmt.on_conflict_do_update(constraint='event_user_pkey', set_={'is_viewed': True,
                                                                                   'is_accepted': True})
+
             await session.execute(stmt)
             await session.commit()
 
@@ -351,15 +339,18 @@ async def reject_invite_to_event(event_id: UUID4, user_id: UUID4) -> None:
 
 
 async def leave_the_event(event_id: UUID4, user_id: UUID4) -> None:
+    # Эта функция такая же, как выше. Она должна была отличаться, но в процессе разработки все поменялось.
+    # Не удаляю т.к. в будущем она может пригодится при изменении правил обработки event_user
     async with async_session() as session:
         event_user = await session.get(EventUser, {'event_id': event_id,
                                                    'user_id': user_id})
         if event_user:
             stmt = update(EventUser).where(EventUser.user_id == user_id,
                                            EventUser.event_id == event_id).values(is_viewed=True, is_accepted=False)
-            # Тут будет анбинд очереди
+
             await session.execute(stmt)
             await session.commit()
+
         else:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail='Invite not found')
 
@@ -376,6 +367,7 @@ async def delete_user_from_event(event_id: UUID4, deleted_user_id: UUID4, user_i
 
                 await session.execute(stmt)
                 await session.commit()
+
             else:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, detail='User is not a member of the event')
         else:
@@ -426,8 +418,10 @@ async def transfer_owner_rights(event_id: UUID4, user_id: UUID4, owner_id: UUID4
 
             stmt = update(EventUser).where(EventUser.user_id == owner_id,
                                            EventUser.event_id == event_id).values(permissions=Rights.public.value)
+
             await session.execute(stmt)
             await session.commit()
+
         else:
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')
 
@@ -479,6 +473,7 @@ async def clone_event(event_id: UUID4, user_id: UUID4) -> Event:
                 session.add(new_event)
                 session.add(new_event_user)
             await session.commit()
+
             return new_event
 
 
@@ -502,7 +497,8 @@ async def remind_event(event_id: UUID4, user_id: UUID4) -> None:
                                                    'user_id': user_id})
         if event_user:
             stmt = update(EventUser).where(EventUser.user_id == user_id,
-                                           EventUser.event_id == event_id).values(is_reminder_on=not event_user.is_reminder_on)
+                                           EventUser.event_id == event_id).values(
+                is_reminder_on=not event_user.is_reminder_on)
 
             await session.execute(stmt)
             await session.commit()

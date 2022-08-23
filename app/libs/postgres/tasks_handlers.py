@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Union
 
 from fastapi import HTTPException, status
@@ -97,6 +98,7 @@ async def edit_task(task_id: UUID4, task: TasksSchema, user_id: UUID4, generate_
                                                                  title=task.title,
                                                                  description=task.description,
                                                                  icon=task.icon,
+                                                                 edited_at=datetime.now(),
                                                                  from_datetime=task.from_datetime.replace(tzinfo=None),
                                                                  to_datetime=task.to_datetime.replace(tzinfo=None),
                                                                  location=task.location,
