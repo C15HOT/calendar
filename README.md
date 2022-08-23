@@ -11,6 +11,15 @@ Generated from cookiecutter template
 pip install -r requirements-dev.txt -U
 ```
 
+### Тестирование:
+```
+Чтобы протестировать модуль необходимо выполнить команду: docker-compose up - d
+Отключить службу постгреса если он установлен в системе во избежание конфликта с контейнером постгреса
+Запустить файл db_init.py
+Данный файл создаст необходимые модели и триггеры в БД
+```
+
+
 ### Install git hooks
 
 ```
@@ -24,16 +33,11 @@ mv .env.example .env
 python -m app
 ```
 
-## Run pre-commit hooks
+## Роуты
 
-### Run whole hooks config
+### Events
+![img_1.png](img_1.png)
 
-```
-pre-commit run --all-files
-```
+### Tasks
+![img_2.png](img_2.png)
 
-### Run single hook
-
-```
-pre-commit run flake8 --all-files
-```
