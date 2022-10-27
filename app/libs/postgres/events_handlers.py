@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, date
+from pprint import pprint
 from typing import List, Union, Optional
 
 from fastapi import HTTPException, status
@@ -17,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy import update, delete
 from sqlalchemy.dialects.postgresql import insert
 
-from app.libs.ml_app.ml_operations import get_prority
+from app.libs.ml_app.ml_operations import get_prority, get_transfer_variants
 
 import datetime as d
 
@@ -127,6 +128,7 @@ async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4,
                                                                             repeat_days=event.repeat_days,
                                                                             repeat_interval=event.repeat_interval,
                                                                             repeat_mode=event.repeat_mode)
+            priority = get_prority(text=event.description)
             stmt = update(Event).where(Event.id == event_id).values(id=Event.id,
                                                                     title=event.title,
                                                                     description=event.description,
@@ -145,7 +147,8 @@ async def edit_event(event_id: UUID4, event: EventsSchema, user_id: UUID4,
                                                                     repeat_dates=event.repeat_dates,
                                                                     repeat_interval=event.repeat_interval,
                                                                     source=event.source,
-                                                                    default_permissions=event.default_permissions.value)
+                                                                    default_permissions=event.default_permissions.value,
+                                                                    priority=float(priority))
 
             await session.execute(stmt)
             await session.commit()
@@ -224,6 +227,9 @@ async def delete_event(event_id: UUID4, user_id: UUID4) -> None:
 async def get_event(event_id: UUID4, user_id: UUID4) -> Event:
     event, rights = await check_event_exits_and_user_rights(event_id=event_id, user_id=user_id, return_event=True)
     if 'r' in rights:
+        func = await get_transfer_variants(event=event, user_id=user_id)
+
+        pprint(func)
         return event
     else:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail='Forbidden')

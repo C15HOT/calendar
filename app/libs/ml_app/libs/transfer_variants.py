@@ -19,7 +19,7 @@ async def check_intersections(
         after_ts=event.to_datetime,
         event_beginning=True
     )
-    intersecting_events = [EventsSchema(**event) async for event in overlapping_events_cursor_bin]
+    intersecting_events = overlapping_events_cursor_bin
 
     overlapping_events_cursor_fin = await get_time_segment_user_events(
         user_id=user_id,
@@ -27,14 +27,14 @@ async def check_intersections(
         after_ts=event.to_datetime,
         event_beginning=False
     )
-    intersecting_events.extend([EventsSchema(**event) async for event in overlapping_events_cursor_fin])
+    intersecting_events.extend(overlapping_events_cursor_fin)
 
     enveloping_events_cursor = await get_enveloping_user_events(
         user_id=user_id,
         begin_ts=event.from_datetime,
         end_ts=event.to_datetime
     )
-    intersecting_events.extend([EventsSchema(**event) async for event in enveloping_events_cursor])
+    intersecting_events.extend(enveloping_events_cursor)
 
     return intersecting_events
 
@@ -46,7 +46,7 @@ async def generate_event_variants(user_id, duration, location_begin, location_en
                                                        after_ts=considered_start,
                                                        sort_required=True,
                                                        )
-    future_events = [EventsSchema(**event) async for event in future_events]
+    future_events = future_events
     all_time_slots = set()
     if len(future_events) == 0:
         considered_start += timedelta(hours=2)
@@ -133,11 +133,11 @@ async def get_cancellations(
                                                            cancelled_event_location, cancelled_event_location
                                                            )
 
-        earliest_begin = min(map(lambda el: el.date_time_begin, oops))
-        latest_end = max(map(lambda el: el.date_time_end, oops))
+        earliest_begin = min(map(lambda el: el.from_datetime, oops))
+        latest_end = max(map(lambda el: el.to_datetime, oops))
         cancelled_events_duration = latest_end - earliest_begin
-        earliest_location = reduce(lambda a, b: a if a.date_time_begin < b.date_time_begin else b, oops).location
-        latest_location = reduce(lambda a, b: a if a.date_time_end > b.date_time_end else b, oops).location
+        earliest_location = reduce(lambda a, b: a if a.from_datetime < b.from_datetime else b, oops).location
+        latest_location = reduce(lambda a, b: a if a.to_datetime > b.to_datetime else b, oops).location
         cancellations_vars_plan_b = await generate_event_variants(user_id, cancelled_events_duration,
                                                                   earliest_location, latest_location
                                                                   )
@@ -146,11 +146,11 @@ async def get_cancellations(
             'most_important': [([event], variant) for variant in cancellations_vars],
             'less_important': [(oops, variant) for variant in cancellations_vars_plan_b],
         }
-    earliest_begin = min(map(lambda el: el.date_time_begin, oops))
-    latest_end = max(map(lambda el: el.date_time_end, oops))
+    earliest_begin = min(map(lambda el: el.from_datetime, oops))
+    latest_end = max(map(lambda el: el.to_datetime, oops))
     cancelled_events_duration = latest_end - earliest_begin
-    earliest_location = reduce(lambda a, b: a if a.date_time_begin < b.date_time_begin else b, oops).location
-    latest_location = reduce(lambda a, b: a if a.date_time_end > b.date_time_end else b, oops).location
+    earliest_location = reduce(lambda a, b: a if a.from_datetime < b.from_datetime else b, oops).location
+    latest_location = reduce(lambda a, b: a if a.to_datetime > b.to_datetime else b, oops).location
     cancellations_vars = await generate_event_variants(user_id, cancelled_events_duration,
                                                        earliest_location, latest_location
                                                        )
