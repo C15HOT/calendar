@@ -92,6 +92,7 @@ class EventsSchema(BaseModel):
     source: str
     owner_id: Optional[UUID4]
     default_permissions: Rights = Rights.public
+    priority: Optional[float]
 
 
 class TaskUserSchema(BaseModel):
