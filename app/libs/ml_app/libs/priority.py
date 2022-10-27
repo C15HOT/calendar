@@ -11,8 +11,8 @@ from natasha import Segmenter, MorphVocab, NewsEmbedding, NewsMorphTagger, Doc
 
 from app.schemas.calendar_schemas import EventsSchema
 
-TAGGER_EMBEDDINGS = "navec_news_v1_1B_250K_300d_100q.tar"
-TAGGER_MODEL = "slovnet_morph_news_v1.tar"
+TAGGER_EMBEDDINGS = "app/libs/ml_app/models/navec_news_v1_1B_250K_300d_100q.tar"
+TAGGER_MODEL = "app/libs/ml_app/models/slovnet_morph_news_v1.tar"
 CUDA_STATE = -1
 
 ORDINARY_LOWER_BOUND = 0

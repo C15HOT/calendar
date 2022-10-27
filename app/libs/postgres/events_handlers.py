@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy import update, delete
 from sqlalchemy.dialects.postgresql import insert
 
+from app.libs.ml_app.ml_operations import get_prority
+
 import datetime as d
 
 settings = get_settings()
@@ -78,6 +80,8 @@ async def insert_event(event: EventsSchema,
                                                                     repeat_days=event.repeat_days,
                                                                     repeat_interval=event.repeat_interval,
                                                                     repeat_mode=event.repeat_mode)
+        priority = get_prority(text=event.description)
+
         new_event = Event(id=event.id,
                           title=event.title,
                           description=event.description,
@@ -93,7 +97,8 @@ async def insert_event(event: EventsSchema,
                           repeat_interval=event.repeat_interval,
                           source=event.source,
                           owner_id=owner_id,
-                          default_permissions=event.default_permissions.value
+                          default_permissions=event.default_permissions.value,
+                          priority=float(priority)
                           )
 
         new_event_user = EventUser(

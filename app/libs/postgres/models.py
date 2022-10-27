@@ -2,7 +2,7 @@
 import uuid
 
 from sqlalchemy import ARRAY, BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey, ForeignKeyConstraint, \
-    Integer, JSON, String, Table, text, Float
+    Integer, JSON, String, Table, text, Float, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -120,7 +120,7 @@ class Event(Base):
     source = Column(String)
     owner_id = Column(ForeignKey('users.id'))
     default_permissions = Column(String(9))
-    priority = Column(Float)
+    priority = Column(Numeric)
     owner = relationship('User')
     tags = relationship('Tag', secondary='event_tag')
 
