@@ -66,6 +66,7 @@ websockets==8.1
 yarl==1.8.1
 
 
+
 numpy==1.21.6
 fasttext==0.9.2
 dostoevsky==0.6.0
